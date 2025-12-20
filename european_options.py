@@ -2,6 +2,7 @@ import yfinance as yf
 import math
 from datetime import datetime
 import pandas
+import numpy as np
 from scipy.stats import norm
 
 stock = ""
@@ -12,7 +13,7 @@ european_exchanges = [ #checks if stock is european
     "VIE", "ATHEX", "OB", "BME", "BSE", "PSE"
 ]
 
-def get_price(ticker): #retrive the price of the stock, +validation
+def get_price(): #retrive the price of the stock, +validation
     try:
         dat = yf.Ticker(ticker.upper())
         if dat.info["exchange"] in european_exchanges:
@@ -22,7 +23,7 @@ def get_price(ticker): #retrive the price of the stock, +validation
     except:
         return("stock not found")
 
-def get_option(ticker):
+def get_option():
     index = 0
     dat = yf.Ticker(ticker.upper())
     expiries = dat.options
@@ -35,6 +36,13 @@ def get_option(ticker):
     call_strikes = calls['strike'].tolist()
     put_strikes = puts['strike'].tolist()
 
+def calc_volatility():
+    dat = yf.Ticker(ticker.upper())
+    historic_dat = dat.history(period="1y") 
+    daily_returns = (historic_dat['Close'] / historic_dat['Close'].shift(1)).apply(np.log).dropna()
+    daily_std = daily_returns.std()
+    annualized_vol = daily_std * math.sqrt(252)
+    return round(annualized_vol, 6)
 
-stock = input("enter stock").strip()
-print(get_option(stock))
+ticker = input("enter stock").strip()
+print(calc_volatility())
