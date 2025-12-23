@@ -13,7 +13,7 @@ european_exchanges = [ #checks if stock is european
     "VIE", "ATHEX", "OB", "BME", "BSE", "PSE"
 ]
 
-def get_price(): #retrive the price of the stock, +validation
+def get_price(ticker): #retrive the price of the stock, +validation
     try:
         dat = yf.Ticker(ticker.upper())
         if dat.info["exchange"] in european_exchanges:
@@ -23,20 +23,14 @@ def get_price(): #retrive the price of the stock, +validation
     except:
         return("stock not found")
 
-def get_option():
-    index = 0
-    dat = yf.Ticker(ticker.upper())
-    expiries = dat.options
-    one_expiry = datetime.strptime(dat.options[index], "%Y-%m-%d")
+def get_option(ticker):
+    one_expiry = "2026/10/10"
+    one_expiry = datetime.strptime(one_expiry, "%Y/%m/%d")
     t = (one_expiry - datetime.today()).days
     t = t / 365
-    option_chain = dat.option_chain(dat.options[index])
-    calls = option_chain.calls
-    puts = option_chain.puts
-    call_strikes = calls['strike'].tolist()
-    put_strikes = puts['strike'].tolist()
 
-def calc_volatility():
+
+def calc_volatility(ticker):
     dat = yf.Ticker(ticker.upper())
     historic_dat = dat.history(period="1y") 
     daily_returns = (historic_dat['Close'] / historic_dat['Close'].shift(1)).apply(np.log).dropna()
@@ -44,5 +38,40 @@ def calc_volatility():
     annualized_vol = daily_std * math.sqrt(252)
     return round(annualized_vol, 6)
 
+def get_basic_rate(T_years):
+
+    gilt_yields = {
+        2: 0.0374,
+        5: 0.0395,
+        10: 0.0452,
+        30: 0.0527
+    }
+
+    df = pd.DataFrame(list(gilt_yields.items()), columns=["Maturity", "Yield"]).sort_values("Maturity")
+
+    if T_years <= df["Maturity"].min():
+        return df["Yield"].iloc[0]
+    if T_years >= df["Maturity"].max():
+        return df["Yield"].iloc[-1]
+
+    lower = df[df["Maturity"] <= T_years].iloc[-1]
+    upper = df[df["Maturity"] >= T_years].iloc[0]
+
+    if lower["Maturity"] == upper["Maturity"]:
+        return lower["Yield"]
+
+    r = lower["Yield"] + (upper["Yield"] - lower["Yield"]) * ((T_years - lower["Maturity"]) / (upper["Maturity"] - lower["Maturity"]))
+    return r
+
+def calculate_option(price, time, r, volatility, strike, opt_type):
+    d1 = ((math.log(price/strike)) + (r + (0.5 * volatility * volatility)) * time)/(volatility * (math.sqrt(time)))
+    d2 = d1 - (volatility * (math.sqrt(time)))
+    if opt_type == "call":
+        opt_price = price * norm.cdf(d1) - strike * math.exp(r * time * -1) * norm.cdf(d2)
+    else:
+        opt_price = -price * norm.cdf(-d1) + strike * math.exp(r * time * -1) * norm.cdf(-d2)
+    return(opt_price)
+
+
 ticker = input("enter stock").strip()
-print(calc_volatility())
+print(get_option(ticker))
